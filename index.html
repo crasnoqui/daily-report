@@ -858,7 +858,7 @@
               <span class="calc-docfee-value tabular">$799</span>
             </div>
             <div class="calc-docfee">
-              <span class="calc-docfee-label">Tire Fee</span>
+              <label class="calc-docfee-label calc-temptag-label" for="c-tirefee"><input type="checkbox" class="calc-temptag-check" id="c-tirefee" /> Tire Fee</label>
               <span class="calc-docfee-value tabular">$5.00</span>
             </div>
             <div class="calc-docfee">
@@ -868,6 +868,10 @@
             <div class="calc-docfee">
               <label class="calc-docfee-label calc-temptag-label" for="c-temptag"><input type="checkbox" class="calc-temptag-check" id="c-temptag" /> Temp Tag</label>
               <span class="calc-docfee-value tabular">$7.50</span>
+            </div>
+            <div class="calc-field">
+              <label for="c-addfee">Additional Fee (Optional)</label>
+              <span class="calc-money"><span class="dollar" aria-hidden="true">$</span><input class="field" id="c-addfee" type="text" inputmode="decimal" value="" autocomplete="off" /></span>
             </div>
             <div class="calc-field">
               <span class="flabel" id="c-taxbasis-label">Tax Is Charged On</span>
@@ -2266,12 +2270,15 @@
             var taxBase = basis === "full" ? price : Math.max(0, price - trade);
             var tax = taxBase * taxRate / 100;
             var docFee = DOC_FEE;
-            var tireFee = TIRE_FEE;
+            var tireFeeEl = $("c-tirefee");
+            var tireFeeOn = !!(tireFeeEl && tireFeeEl.checked);
+            var tireFee = tireFeeOn ? TIRE_FEE : 0;
             var licenseFee = LICENSE_FEE;
             var tempTagEl = $("c-temptag");
             var tempTagOn = !!(tempTagEl && tempTagEl.checked);
             var tempTagFee = tempTagOn ? TEMP_TAG_FEE : 0;
-            var fixedFees = docFee + tireFee + licenseFee + tempTagFee;
+            var addFee = Math.max(0, num("c-addfee"));
+            var fixedFees = docFee + tireFee + licenseFee + tempTagFee + addFee;
             var financed = Math.max(0, price - down - equity + tax + fixedFees);
             var plain = amortize(financed, apr, term, 0);
             var withExtra = extra > 0 ? amortize(financed, apr, term, extra) : plain;
@@ -2287,9 +2294,10 @@
               eqLine +
               '<div class="calc-line"><span class="k">Sales tax (' + taxRate + "% on " + fmt0(taxBase) + ')</span><span class="v">+' + fmt(tax) + "</span></div>" +
               '<div class="calc-line"><span class="k">Doc Fee <span class="tag">Non-negotiable</span></span><span class="v">+' + fmt(docFee) + "</span></div>" +
-              '<div class="calc-line"><span class="k">Tire Fee</span><span class="v">+' + fmt(tireFee) + "</span></div>" +
+              (tireFeeOn ? '<div class="calc-line"><span class="k">Tire Fee</span><span class="v">+' + fmt(tireFee) + "</span></div>" : "") +
               '<div class="calc-line"><span class="k">License Fee</span><span class="v">+' + fmt(licenseFee) + "</span></div>" +
               (tempTagOn ? '<div class="calc-line"><span class="k">Temp Tag</span><span class="v">+' + fmt(tempTagFee) + "</span></div>" : "") +
+              (addFee > 0 ? '<div class="calc-line"><span class="k">Additional Fee</span><span class="v">+' + fmt(addFee) + "</span></div>" : "") +
               '<div class="calc-line total"><span class="k">Amount financed</span><span class="v">' + fmt(financed) + "</span></div>";
             var act = extra > 0 ? withExtra : plain;
             $("c-payoff").innerHTML =
@@ -2304,9 +2312,10 @@
               "\nTrade-in: " + fmt(trade) + (owed ? " (" + fmt(owed) + " still owed)" : "") +
               "\nSales tax: " + fmt(tax) +
               "\nDoc Fee: " + fmt(docFee) + " (non-negotiable)" +
-              "\nTire Fee: " + fmt(tireFee) +
+              (tireFeeOn ? "\nTire Fee: " + fmt(tireFee) : "") +
               "\nLicense Fee: " + fmt(licenseFee) +
               (tempTagOn ? "\nTemp Tag: " + fmt(tempTagFee) : "") +
+              (addFee > 0 ? "\nAdditional Fee: " + fmt(addFee) : "") +
               "\nAmount financed: " + fmt(financed) +
               "\n" + fmt(plain.base) + "/month for " + plain.months + " months at " + apr + "% APR" +
               "\nTotal interest: " + fmt(plain.totalInt) + "\nPayoff: " + (financed > 0 ? payoffDate(plain.months) : "—") +
@@ -2321,6 +2330,14 @@
           });
           var tempTagInput = $("c-temptag");
           if (tempTagInput) tempTagInput.addEventListener("change", calc);
+          var tireFeeInput = $("c-tirefee");
+          if (tireFeeInput) tireFeeInput.addEventListener("change", calc);
+          var addFeeInput = $("c-addfee");
+          if (addFeeInput) {
+            addFeeInput.addEventListener("input", calc);
+            addFeeInput.addEventListener("focus", function () { addFeeInput.value = ""; calc(); });
+            addFeeInput.addEventListener("click", function () { addFeeInput.value = ""; calc(); });
+          }
           $("c-down-quick").addEventListener("click", function (e) {
             var b = e.target.closest("[data-pct]");
             if (!b) return;
@@ -2355,6 +2372,8 @@
             $("c-taxrate").value = "7";
             $("c-apr").value = "7.9"; $("c-term").value = "60"; $("c-extra").value = "0";
             var tt = $("c-temptag"); if (tt) tt.checked = false;
+            var tf = $("c-tirefee"); if (tf) tf.checked = false;
+            var af = $("c-addfee"); if (af) af.value = "";
             var after = document.querySelector('input[name="c-taxbasis"][value="after"]');
             if (after) after.checked = true;
             $("c-down-quick").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-pct") === "10" ? "true" : "false"); });

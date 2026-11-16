@@ -997,6 +997,24 @@
         (D.goneArchive || []).forEach(function (c) { addGone(c, false); });
         (D.arrivals || []).forEach(function (c) { if (c.gone) addGone(c, false); });
 
+        /* ----- price drops: cars still on the lot only ----- */
+        /* Carson's rule (2026-11-16): the Price Drops page shows only
+           cars still on the lot. A dropped car that has since been
+           removed / sold leaves the Price Drops lists, totals and counts
+           below; its drop record stays in D.drops itself, so Gone-page
+           packets still read it through dropByStock above. A change
+           counts as on-lot when its stock # is in the current inventory
+           and it is not part of the gone history. */
+        var goneStockSet = {};
+        goneHistory.forEach(function (c) { if (c.stock) goneStockSet[c.stock.toUpperCase()] = true; });
+        function isOnLotChange(p) {
+          if (!p || !p.stock) return false;
+          var key = p.stock.toUpperCase();
+          return !!byStock[key] && !goneStockSet[key];
+        }
+        var activeDrops = (D.drops || []).filter(isOnLotChange);
+        var activeIncreases = (D.increases || []).filter(isOnLotChange);
+
         /* ----- arrivals history ----- */
         /* "added" only holds the LATEST pull's arrivals, so a pull that
            adds nothing blanks it and every earlier arrival is lost.
@@ -1307,10 +1325,10 @@
         });
 
         /* ----- stat cards (Today) ----- */
-        var totalDrop = D.drops.reduce(function (a, p) { return a + (p.old - p.new); }, 0);
+        var totalDrop = activeDrops.reduce(function (a, p) { return a + (p.old - p.new); }, 0);
         document.getElementById("stat-grid").innerHTML =
           '<button type="button" class="stat-card" data-goto="lot"><div class="lbl">On The Lot</div><div class="num tabular">' + D.total + '</div><div class="sub">' + D.inTransit + ' in transit</div></button>' +
-          '<button type="button" class="stat-card drop" data-goto="drops"><div class="lbl">Price Drops</div><div class="num tabular">' + D.drops.length + '</div><div class="sub">' + money(totalDrop) + ' in cuts</div></button>' +
+          '<button type="button" class="stat-card drop" data-goto="drops"><div class="lbl">Price Drops</div><div class="num tabular">' + activeDrops.length + '</div><div class="sub">' + money(totalDrop) + ' in cuts</div></button>' +
           '<button type="button" class="stat-card" data-goto="newin"><div class="lbl">New In</div><div class="num tabular">' + weekArrivals.length + '</div><div class="sub">in the past week</div></button>' +
           '<button type="button" class="stat-card" data-goto="gone"><div class="lbl">Gone</div><div class="num tabular">' + goneHistory.length + '</div><div class="sub">removed / sold</div></button>' +
           '<button type="button" class="stat-card" data-goto="market"><div class="lbl">Slots Left</div><div class="num tabular">5</div><div class="sub">of 5 per day</div></button>';
@@ -1388,12 +1406,12 @@
             "</" + tag + ">";
         }
         document.getElementById("today-drops").innerHTML =
-          D.drops.slice(0, 5).map(dropRow).join("") || '<div class="empty">No price drops in this snapshot.</div>';
+          activeDrops.slice(0, 5).map(dropRow).join("") || '<div class="empty">No price drops in this snapshot.</div>';
         document.getElementById("drops-sub").textContent =
-          D.drops.length + " vehicles dropped, " + money(totalDrop) + " in total cuts. The latest pull added 28 new drops, and every drop still on the lot is still at its dropped price.";
+          activeDrops.length + " vehicles dropped, " + money(totalDrop) + " in total cuts. The latest pull added 28 new drops, and every drop still on the lot is still at its dropped price.";
         var dropsPeriod = "all";
         function renderDrops() {
-          var list = D.drops.filter(function (p) { return inPeriod(p, dropsPeriod); });
+          var list = activeDrops.filter(function (p) { return inPeriod(p, dropsPeriod); });
           document.getElementById("drops-list").innerHTML =
             list.map(dropRow).join("") || '<div class="empty">No price drops recorded in that window.</div>';
           document.getElementById("drops-period-note").textContent =
@@ -1401,9 +1419,9 @@
         }
         wirePeriod("drops-period", function (p) { dropsPeriod = p; renderDrops(); });
         renderDrops();
-        if (D.increases && D.increases.length) {
+        if (activeIncreases.length) {
           document.getElementById("drops-ups").innerHTML =
-            '<h3 class="block-title">Price Increases</h3>' + D.increases.map(function (p) {
+            '<h3 class="block-title">Price Increases</h3>' + activeIncreases.map(function (p) {
               var v = byStock[(p.stock || "").toUpperCase()];
               return '<div class="card list-card">' + (v ? thumbHTML(v.vin, p.vehicle) : '<span class="thumb-missing">No photo available</span>') +
                 '<span class="list-main"><span class="row-line drop-line" style="display:flex"><span class="car-name">' + esc(p.vehicle) + '</span>' +

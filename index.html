@@ -769,6 +769,9 @@
       <section class="view" id="view-newin">
         <h2 class="view-title">New In</h2>
         <p class="view-sub">Vehicles that have come in on the dealership website, with the day each one arrived and how many days it has been new — Day 0 means it arrived today. The past week shows by default; Previous Weeks covers older arrivals. Tap a car for its full packet.</p>
+        <div class="search-row" style="margin:0 0 14px">
+          <input class="field" id="newin-search" type="search" placeholder="Search new in — car, stock #, VIN…" autocomplete="off" enterkeyhint="search" aria-label="Search new arrivals" />
+        </div>
         <div class="chips" id="newin-period" role="group" aria-label="Filter new arrivals by when they came in" style="margin-top:0">
           <button type="button" data-period="all" aria-pressed="false">All</button>
           <button type="button" data-period="day" aria-pressed="false">Today</button>
@@ -1545,9 +1548,20 @@
         document.getElementById("today-gone").innerHTML =
           goneHistory.map(function (c) { return changeCard(c, true); }).join("") || '<div class="empty">No cars recorded as gone yet.</div>';
         var newinPeriod = "week", gonePeriod = "all";
+        var newinQuery = "";
         function renderNewin() {
           var list = arrivalsSorted.filter(function (c) { return inArrivalPeriod(c, newinPeriod); });
-          var empty = newinPeriod === "prev"
+          var q = newinQuery.trim().toLowerCase();
+          if (q) {
+            list = list.filter(function (c) {
+              return (c.vehicle || "").toLowerCase().indexOf(q) !== -1
+                || (c.stock || "").toLowerCase().indexOf(q) !== -1
+                || (c.vin || "").toLowerCase().indexOf(q) !== -1;
+            });
+          }
+          var empty = q && list.length === 0
+            ? '<div class="empty">No new arrivals match "' + esc(newinQuery.trim()) + '" in this view — clear the search to see the full list.</div>'
+            : newinPeriod === "prev"
             ? '<div class="empty">No arrivals from earlier weeks yet — arrival records begin ' + esc(arrivalsStartLabel || "with this report") + ", so there are no earlier weeks to show yet.</div>"
             : '<div class="empty">No new arrivals in that window.</div>';
           document.getElementById("newin-added").innerHTML =
@@ -1578,6 +1592,7 @@
           document.getElementById("gone-period-note").textContent = notes[gonePeriod] || "";
         }
         wirePeriod("newin-period", function (p) { newinPeriod = p; renderNewin(); });
+        document.getElementById("newin-search").addEventListener("input", function () { newinQuery = this.value; renderNewin(); });
         wirePeriod("gone-period", function (p) { gonePeriod = p; renderGone(); });
         renderNewin();
         renderGone();

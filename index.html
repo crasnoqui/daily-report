@@ -299,6 +299,7 @@
       .filter-actions #lot-clear-filters { order: 1; }
       .carfax-btn { margin-top: 12px; }
       .period-note { color: var(--faint); font-size: 13px; margin: 0 0 12px; }
+      .group-head { font-size: 17px; margin: 18px 0 10px; }
 
       /* ---------- sections & lists ---------- */
       section.view { display: none; }
@@ -772,12 +773,14 @@
         <div class="search-row" style="margin:0 0 14px">
           <input class="field" id="newin-search" type="search" placeholder="Search new in — car, stock #, VIN…" autocomplete="off" enterkeyhint="search" aria-label="Search new arrivals" />
         </div>
-        <div class="chips" id="newin-period" role="group" aria-label="Filter new arrivals by when they came in" style="margin-top:0">
-          <button type="button" data-period="all" aria-pressed="false">All</button>
-          <button type="button" data-period="day" aria-pressed="false">Today</button>
-          <button type="button" data-period="week" aria-pressed="true">This Week</button>
-          <button type="button" data-period="month" aria-pressed="false">This Month</button>
-          <button type="button" data-period="prev" aria-pressed="false">Previous Weeks</button>
+        <div style="margin:0 0 14px">
+          <select class="field-select" id="newin-period-select" aria-label="Filter new arrivals by when they came in">
+            <option value="all">All</option>
+            <option value="day">Today</option>
+            <option value="week" selected>This Week</option>
+            <option value="month">This Month</option>
+            <option value="prev">Previous Weeks</option>
+          </select>
         </div>
         <p class="period-note" id="newin-period-note"></p>
         <div id="newin-added"></div>
@@ -1207,8 +1210,8 @@
               manualChecking = false;
               refreshBtn.disabled = false;
               refreshBtn.textContent = "Refresh";
-              refreshStatus.textContent = "Up to date — snapshot " + snapText + ". New dealership pulls publish hourly.";
-              refreshStatus.hidden = false;
+              refreshStatus.textContent = "";
+              refreshStatus.hidden = true;
             })
             .catch(function () {
               manualChecking = false;
@@ -1314,6 +1317,10 @@
               if (current !== "packet") resumeLotPacket();
               return;
             }
+            /* Tapping the bottom-navigation button for the page already
+               showing does nothing — it must not reset that page's
+               scroll, search, filters or open state. */
+            if (target === current) return;
             show(target);
             return;
           }
@@ -1551,12 +1558,10 @@
         var newinQuery = "";
         function renderNewin() {
           var list = arrivalsSorted.filter(function (c) { return inArrivalPeriod(c, newinPeriod); });
-          var q = newinQuery.trim().toLowerCase();
+          var q = newinQuery.trim();
           if (q) {
             list = list.filter(function (c) {
-              return (c.vehicle || "").toLowerCase().indexOf(q) !== -1
-                || (c.stock || "").toLowerCase().indexOf(q) !== -1
-                || (c.vin || "").toLowerCase().indexOf(q) !== -1;
+              return searchHit((c.vehicle || "") + " " + (c.stock || "") + " " + (c.vin || ""), q);
             });
           }
           var empty = q && list.length === 0
@@ -1564,8 +1569,12 @@
             : newinPeriod === "prev"
             ? '<div class="empty">No arrivals from earlier weeks yet — arrival records begin ' + esc(arrivalsStartLabel || "with this report") + ", so there are no earlier weeks to show yet.</div>"
             : '<div class="empty">No new arrivals in that window.</div>';
-          document.getElementById("newin-added").innerHTML =
-            list.map(arrivalCard).join("") || empty;
+          var newList = list.filter(function (c) { return c.category === "New"; });
+          var usedList = list.filter(function (c) { return c.category !== "New"; });
+          var grouped = "";
+          if (newList.length) grouped += '<h3 class="group-head">New (' + newList.length + ")</h3>" + newList.map(arrivalCard).join("");
+          if (usedList.length) grouped += '<h3 class="group-head">Used (' + usedList.length + ")</h3>" + usedList.map(arrivalCard).join("");
+          document.getElementById("newin-added").innerHTML = grouped || empty;
           var notes = {
             all: "Every recorded arrival" + (arrivalsStartLabel ? " since " + arrivalsStartLabel : "") + ", newest first.",
             day: "Arrivals that came in today, " + fmtDay(snap) + ".",
@@ -1591,7 +1600,7 @@
           };
           document.getElementById("gone-period-note").textContent = notes[gonePeriod] || "";
         }
-        wirePeriod("newin-period", function (p) { newinPeriod = p; renderNewin(); });
+        document.getElementById("newin-period-select").addEventListener("change", function () { newinPeriod = this.value; renderNewin(); });
         document.getElementById("newin-search").addEventListener("input", function () { newinQuery = this.value; renderNewin(); });
         wirePeriod("gone-period", function (p) { gonePeriod = p; renderGone(); });
         renderNewin();
@@ -2043,6 +2052,14 @@
           renderLot();
         });
 
+        /* Search is forgiving: case, hyphens, spaces and punctuation are
+           ignored on both sides, so "crv" matches "CR-V" and "cr-v"
+           matches "CRV". */
+        function normSearch(s) { return (s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+        function searchHit(hay, q) {
+          var hayN = normSearch(hay);
+          return q.toLowerCase().split(/\s+/).map(normSearch).filter(Boolean).every(function (t) { return hayN.indexOf(t) !== -1; });
+        }
         function lotFiltered() {
           var lotF = lotApplied;
           var q = lotQuery.trim().toLowerCase();
@@ -2076,8 +2093,8 @@
               if (f && !f.re.test(featText(v))) return false;
             }
             if (!q) return true;
-            var hay = (name(v) + " " + v.s + " " + v.vin + " " + v.ext + " " + v.int + " " + v.body).toLowerCase();
-            return q.split(/\s+/).every(function (t) { return hay.indexOf(t) !== -1; });
+            var hay = name(v) + " " + v.s + " " + v.vin + " " + v.ext + " " + v.int + " " + v.body;
+            return searchHit(hay, q);
           });
           var pv = function (v) { return v.price == null ? Infinity : v.price; };
           list.sort(function (a, b) {
@@ -2093,8 +2110,9 @@
         }
         function renderLot() {
           var list = lotFiltered();
-          document.getElementById("lot-sub").textContent =
-            "Every vehicle in the " + snapText + " snapshot. Tap a car to open its own page with details for just that car. The page stays open when you come back to On The Lot — press Back at the top left to return to the lot list.";
+          var lotSub = document.getElementById("lot-sub");
+          lotSub.textContent = "";
+          lotSub.hidden = true;
           document.getElementById("lot-count").textContent =
             "Showing " + list.length + " of " + vehicles.length + " vehicles";
           document.getElementById("lot-grid").innerHTML = list.map(carCard).join("");

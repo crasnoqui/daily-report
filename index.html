@@ -782,6 +782,11 @@
             <option value="prev">Previous Weeks</option>
           </select>
         </div>
+        <div class="chips" id="newin-cat" role="group" aria-label="Filter new arrivals by new or used" style="margin-top:0">
+          <button type="button" data-ncat="All" aria-pressed="true">All</button>
+          <button type="button" data-ncat="New" aria-pressed="false">New</button>
+          <button type="button" data-ncat="Used" aria-pressed="false">Used</button>
+        </div>
         <p class="period-note" id="newin-period-note"></p>
         <div id="newin-added"></div>
       </section>
@@ -1555,9 +1560,12 @@
         document.getElementById("today-gone").innerHTML =
           goneHistory.map(function (c) { return changeCard(c, true); }).join("") || '<div class="empty">No cars recorded as gone yet.</div>';
         var newinPeriod = "week", gonePeriod = "all";
+        var newinCat = "All";
         var newinQuery = "";
         function renderNewin() {
           var list = arrivalsSorted.filter(function (c) { return inArrivalPeriod(c, newinPeriod); });
+          if (newinCat === "New") list = list.filter(function (c) { return c.category === "New"; });
+          else if (newinCat === "Used") list = list.filter(function (c) { return c.category !== "New"; });
           var q = newinQuery.trim();
           if (q) {
             list = list.filter(function (c) {
@@ -1601,6 +1609,15 @@
           document.getElementById("gone-period-note").textContent = notes[gonePeriod] || "";
         }
         document.getElementById("newin-period-select").addEventListener("change", function () { newinPeriod = this.value; renderNewin(); });
+        document.getElementById("newin-cat").addEventListener("click", function (e) {
+          var b = e.target.closest("[data-ncat]");
+          if (!b) return;
+          newinCat = b.getAttribute("data-ncat");
+          document.querySelectorAll("#newin-cat button").forEach(function (x) {
+            x.setAttribute("aria-pressed", x === b ? "true" : "false");
+          });
+          renderNewin();
+        });
         document.getElementById("newin-search").addEventListener("input", function () { newinQuery = this.value; renderNewin(); });
         wirePeriod("gone-period", function (p) { gonePeriod = p; renderGone(); });
         renderNewin();
